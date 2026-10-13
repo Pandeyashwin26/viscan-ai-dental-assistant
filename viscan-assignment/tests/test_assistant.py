@@ -3,6 +3,7 @@ from fastapi.testclient import TestClient
 from app.assistant import Assistant, Session
 from app.llm import RuleBasedLLM
 from app.store import Store
+from app.booking import BookingStore
 
 
 @pytest.fixture()
@@ -18,6 +19,14 @@ def test_retrieves_latest_opg_for_exact_name(bot):
     assert out["report"]["id"] == "R-1002"            # newest of two OPGs
     assert out["report"]["type"] == "OPG"
     assert any("Priya Nayar" in w for w in out["warnings"])   # similar-name safety warning
+
+
+def test_retrieves_previous_report_and_direct_report_id(bot):
+    a, s = bot
+    previous = a.handle(s, "Open Priya Nair's previous OPG report")
+    assert previous["status"] == "ok" and previous["report"]["id"] == "R-1001"
+    direct = a.handle(s, "Open report R-1002")
+    assert direct["status"] == "ok" and direct["report"]["id"] == "R-1002"
 
 
 # 2. ambiguous patient identity ------------------------------------------------
@@ -66,6 +75,61 @@ def test_followup_pronoun_mismatch_asks(bot):
     a, s = bot
     a.handle(s, "Open Karan Shah's latest IOPA")
     assert a.handle(s, "Summarize her report")["status"] == "needs_patient"
+
+
+def test_report_question_is_grounded_in_selected_report(bot):
+    a, s = bot
+    a.handle(s, "Open Priya Nair's latest OPG report")
+    out = a.handle(s, "What are the findings in her report?")
+    assert out["status"] == "ok"
+    assert "Horizontally impacted" in out["message"]
+    assert out["sources"][0]["fields"] == ["findings"]
+
+
+def test_unsupported_report_question_does_not_invent_an_answer(bot):
+    a, s = bot
+    a.handle(s, "Open Priya Nair's latest OPG report")
+    out = a.handle(s, "What treatment should she receive?")
+    assert out["status"] == "unknown_intent"
+
+
+def test_report_chatbot_supports_sites_uncertainty_and_comparison(bot):
+    a, s = bot
+    a.handle(s, "Open Priya Nair's latest OPG report")
+    site = a.handle(s, "Which anatomical site is mentioned in her report?")
+    uncertainty = a.handle(s, "Does the report contain uncertainty?")
+    comparison = a.handle(s, "Compare this report with the previous one")
+    assert site["status"] == "ok" and "48" in site["message"]
+    assert uncertainty["status"] == "ok" and "Radiolucency" in uncertainty["message"]
+    assert comparison["status"] == "ok" and len(comparison["sources"]) == 2
+
+
+def test_booking_requires_confirmation_and_persists_successful_booking():
+    booking_store = BookingStore()
+    a = Assistant(Store(), RuleBasedLLM(), booking_store)
+    s = Session()
+    options = a.handle(s, "Book an OPG scan for Priya Nair on 2026-10-15")
+    assert options["status"] == "booking_options"
+    assert not booking_store.bookings
+    selected = a.handle(s, "Book the 11 AM slot")
+    assert selected["status"] == "booking_confirmation_required"
+    confirmed = a.handle(s, "Confirm booking")
+    assert confirmed["status"] == "booking_confirmed"
+    assert confirmed["booking"]["patient_id"] == "P001"
+    assert len(booking_store.bookings) == 1
+
+
+def test_booking_conflict_is_reported_without_false_success():
+    booking_store = BookingStore()
+    first, second = (Assistant(Store(), RuleBasedLLM(), booking_store) for _ in range(2))
+    first_session, second_session = Session(), Session()
+    first.handle(first_session, "Book an OPG scan for Priya Nair on 2026-10-15 at 09:00")
+    first.handle(first_session, "Confirm booking")
+    unavailable = second.handle(second_session, "Book an OPG scan for Rahul Mehta on 2026-10-15 at 09:00")
+    assert unavailable["status"] == "no_available_slots"
+    result = second.handle(second_session, "Confirm booking")
+    assert result["status"] == "needs_booking_selection"
+    assert len(booking_store.bookings) == 1
 
 
 # 4. dictation + unsupported clinical claims -------------------------------------
@@ -128,3 +192,17 @@ def test_api_end_to_end():
     r = c.post("/chat", json={"session_id": "t1", "text": "Summarize his report"}).json()
     assert r["status"] == "ok" and r["sources"][0]["report_id"] == "R-3001"
     assert c.post("/transcribe", files={"file": ("a.wav", b"123")}).status_code == 501
+
+
+def test_api_draft_can_be_edited_and_requires_review_before_finalize():
+    from app.main import app
+    c = TestClient(app)
+    draft = c.post("/dictate", json={"session_id": "draft-lifecycle", "transcript": "Lower right third molar is horizontally impacted"}).json()["draft"]
+    draft_id = draft["draft_id"]
+    assert c.get(f"/drafts/{draft_id}").status_code == 200
+    assert c.post(f"/drafts/{draft_id}/finalize", json={"clinician_reviewed": False}).status_code == 400
+    edited = c.put(f"/drafts/{draft_id}", json={"draft_report": "Edited draft for review."})
+    assert edited.status_code == 200 and edited.json()["clinician_reviewed"] is False
+    finalized = c.post(f"/drafts/{draft_id}/finalize", json={"clinician_reviewed": True})
+    assert finalized.status_code == 200 and finalized.json()["report_status"] == "FINAL"
+    assert c.delete(f"/drafts/{draft_id}").status_code == 200

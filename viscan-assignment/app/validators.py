@@ -8,7 +8,7 @@ import re
 from .vocab import (FINDING_VOCAB, POLARITIES, CERTAINTIES, REPORT_TYPES, find_sites, describe_fdi)
 
 MAX_INPUT_CHARS = 1500
-ALLOWED_INTENTS = {"open_report", "summarize_report", "dictate", "unknown"}
+ALLOWED_INTENTS = {"open_report", "summarize_report", "report_question", "booking", "booking_confirm", "dictate", "unknown"}
 ALLOWED_RECENCY = {"latest", None}
 _CTRL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
 _NAME_OK = re.compile(r"^[A-Za-z][A-Za-z .'\-]{0,59}$")
@@ -60,6 +60,11 @@ def validate_interpretation(raw: dict) -> tuple[dict, list[str]]:
     return {
         "intent": intent, "patient_name": name, "report_type": rtype, "recency": recency,
         "pronoun": raw.get("pronoun") if raw.get("pronoun") in ("female", "male", "neutral") else None,
+        "scan_type": raw.get("scan_type") if raw.get("scan_type") in ("OPG", "CBCT", "IOPA") else None,
+        "appointment_date": str(raw.get("appointment_date")).lower() if raw.get("appointment_date") else None,
+        "appointment_time": str(raw.get("appointment_time")) if raw.get("appointment_time") else None,
+        "previous": bool(raw.get("previous")),
+        "report_id": str(raw.get("report_id")).upper() if raw.get("report_id") else None,
     }, warnings
 
 

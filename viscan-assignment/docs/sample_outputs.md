@@ -42,7 +42,12 @@
     "patient_name": "Priya Nair",
     "report_type": "OPG",
     "recency": "latest",
-    "pronoun": null
+    "pronoun": null,
+    "scan_type": null,
+    "appointment_date": null,
+    "appointment_time": null,
+    "previous": false,
+    "report_id": null
   }
 }
 ```
@@ -72,7 +77,12 @@
     "patient_name": "Priya",
     "report_type": "OPG",
     "recency": "latest",
-    "pronoun": null
+    "pronoun": null,
+    "scan_type": null,
+    "appointment_date": null,
+    "appointment_time": null,
+    "previous": false,
+    "report_id": null
   }
 }
 ```
@@ -100,7 +110,12 @@
     "patient_name": "Rahul Mehta",
     "report_type": "CBCT",
     "recency": null,
-    "pronoun": null
+    "pronoun": null,
+    "scan_type": null,
+    "appointment_date": null,
+    "appointment_time": null,
+    "previous": false,
+    "report_id": null
   }
 }
 ```
@@ -137,7 +152,199 @@
     "patient_name": null,
     "report_type": null,
     "recency": null,
-    "pronoun": "female"
+    "pronoun": "female",
+    "scan_type": null,
+    "appointment_date": null,
+    "appointment_time": null,
+    "previous": false,
+    "report_id": null
+  }
+}
+```
+
+## D. Grounded report question
+```json
+{
+  "status": "ok",
+  "message": "Findings: Horizontally impacted lower right third molar (48), unchanged.; Radiolucency around the crown of 48, possible pericoronitis.; Restoration present on lower left first molar (36).",
+  "patient": {
+    "id": "P001",
+    "name": "Priya Nair",
+    "dob": "1992-03-14",
+    "last_visit": "2026-09-18"
+  },
+  "report_id": "R-1002",
+  "sources": [
+    {
+      "report_id": "R-1002",
+      "fields": [
+        "findings"
+      ],
+      "evidence": [
+        "Horizontally impacted lower right third molar (48), unchanged.",
+        "Radiolucency around the crown of 48, possible pericoronitis.",
+        "Restoration present on lower left first molar (36)."
+      ]
+    }
+  ],
+  "warnings": [],
+  "interpretation": {
+    "intent": "report_question",
+    "patient_name": null,
+    "report_type": null,
+    "recency": null,
+    "pronoun": "female",
+    "scan_type": null,
+    "appointment_date": null,
+    "appointment_time": null,
+    "previous": false,
+    "report_id": null
+  }
+}
+```
+
+## E. Booking options
+```json
+{
+  "status": "booking_options",
+  "message": "Select one appointment slot, then confirm the booking.",
+  "options": [
+    {
+      "id": "S-1001",
+      "date": "2026-10-15",
+      "time": "09:00",
+      "scan_type": "OPG",
+      "status": "available"
+    },
+    {
+      "id": "S-1002",
+      "date": "2026-10-15",
+      "time": "11:00",
+      "scan_type": "OPG",
+      "status": "available"
+    }
+  ],
+  "patient": {
+    "id": "P001",
+    "name": "Priya Nair",
+    "dob": "1992-03-14",
+    "last_visit": "2026-09-18"
+  },
+  "sources": [
+    {
+      "slot_id": "S-1001",
+      "fields": [
+        "date",
+        "time",
+        "scan_type"
+      ]
+    },
+    {
+      "slot_id": "S-1002",
+      "fields": [
+        "date",
+        "time",
+        "scan_type"
+      ]
+    }
+  ],
+  "warnings": [],
+  "interpretation": {
+    "intent": "booking",
+    "patient_name": "Priya Nair",
+    "report_type": "OPG",
+    "recency": null,
+    "pronoun": null,
+    "scan_type": "OPG",
+    "appointment_date": "2026-10-15",
+    "appointment_time": null,
+    "previous": false,
+    "report_id": null
+  }
+}
+```
+
+## E. Booking confirmation
+```json
+{
+  "status": "booking_confirmation_required",
+  "message": "Review the appointment details and reply 'confirm' to book.",
+  "appointment": {
+    "id": "S-1002",
+    "date": "2026-10-15",
+    "time": "11:00",
+    "scan_type": "OPG",
+    "status": "available"
+  },
+  "patient": {
+    "id": "P001",
+    "name": "Priya Nair",
+    "dob": "1992-03-14",
+    "last_visit": "2026-09-18"
+  },
+  "sources": [
+    {
+      "slot_id": "S-1002",
+      "fields": [
+        "date",
+        "time",
+        "scan_type"
+      ]
+    }
+  ],
+  "warnings": [],
+  "interpretation": {
+    "intent": "booking",
+    "patient_name": null,
+    "report_type": null,
+    "recency": null,
+    "pronoun": null,
+    "scan_type": null,
+    "appointment_date": null,
+    "appointment_time": "11:00",
+    "previous": false,
+    "report_id": null
+  }
+}
+```
+
+## E. Booking committed
+```json
+{
+  "status": "booking_confirmed",
+  "message": "Appointment booked successfully.",
+  "booking": {
+    "booking_id": "B-583FD239",
+    "slot_id": "S-1002",
+    "patient_id": "P001",
+    "patient_name": "Priya Nair",
+    "date": "2026-10-15",
+    "time": "11:00",
+    "scan_type": "OPG",
+    "status": "confirmed"
+  },
+  "sources": [
+    {
+      "slot_id": "S-1002",
+      "fields": [
+        "date",
+        "time",
+        "scan_type"
+      ]
+    }
+  ],
+  "warnings": [],
+  "interpretation": {
+    "intent": "booking_confirm",
+    "patient_name": null,
+    "report_type": null,
+    "recency": null,
+    "pronoun": null,
+    "scan_type": null,
+    "appointment_date": null,
+    "appointment_time": null,
+    "previous": false,
+    "report_id": null
   }
 }
 ```
@@ -148,6 +355,7 @@
   "status": "ok",
   "message": "Draft created. Clinician review required.",
   "draft": {
+    "draft_id": "D-C8D3EA6D",
     "report_status": "DRAFT_REQUIRES_CLINICIAN_REVIEW",
     "clinician_reviewed": false,
     "patient": null,
@@ -185,6 +393,7 @@
       }
     ],
     "rejected_claims": [],
+    "contradictions": [],
     "draft_report": "DRAFT - NOT A CLINICAL RECORD. Requires clinician review and sign-off.\n\nDictated observations:\n1. Horizontal impaction at tooth 48 (lower right third molar).\n2. Possible dental caries at tooth 26 (upper left first molar) - UNCERTAIN, clinician to confirm.\n\nDictated statements NOT converted (clinician to review):\n- \"Patient is comfortable today\" - no supported finding recognised; not added to report\n\nStructures or findings that were not dictated are not commented on.",
     "generated_by": "rule-based-offline"
   },

@@ -7,7 +7,7 @@ editable structured draft, and answers context-dependent follow-ups with cited s
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-pytest -q                        # 14 tests, fully offline
+python -m pytest -q              # 21 tests, fully offline
 python demo.py                   # scripted demo; writes docs/sample_outputs.md
 uvicorn app.main:app --reload    # API at http://127.0.0.1:8000/docs
 python -m app.cli                # interactive CLI
@@ -21,8 +21,17 @@ curl -s localhost:8000/chat -H 'content-type: application/json' \
   -d '{"session_id":"demo","text":"Open Priya Nair'"'"'s latest OPG report"}'
 curl -s localhost:8000/chat -H 'content-type: application/json' \
   -d '{"session_id":"demo","text":"Summarize her report"}'
+curl -s localhost:8000/chat -H 'content-type: application/json' \
+  -d '{"session_id":"demo","text":"What are the findings in her report?"}'
 curl -s localhost:8000/dictate -H 'content-type: application/json' \
   -d '{"transcript":"Lower right third molar is horizontally impacted"}'
+curl -s localhost:8000/chat -H 'content-type: application/json' \
+  -d '{"session_id":"booking","text":"Book an OPG scan for Priya Nair on 2026-10-15"}'
+curl -s localhost:8000/chat -H 'content-type: application/json' \
+  -d '{"session_id":"booking","text":"Book the 11 AM slot"}'
+curl -s localhost:8000/chat -H 'content-type: application/json' \
+  -d '{"session_id":"booking","text":"Confirm booking"}'
+# draft lifecycle: GET/PUT /drafts/{draft_id}, POST /drafts/{draft_id}/finalize, DELETE /drafts/{draft_id}
 # ambiguity: first re-send with the chosen patient_id (original request is replayed)
 curl -s localhost:8000/chat -H 'content-type: application/json' \
   -d '{"session_id":"demo2","text":"Open Priya'"'"'s latest OPG"}'
@@ -36,6 +45,8 @@ curl -s localhost:8000/chat -H 'content-type: application/json' \
 | LLM | Anthropic Claude via tool calling (`LLM_MODEL`, default `claude-sonnet-5-5`); offline rule-based fallback | Forced tool-use gives schema-constrained output; fallback keeps tests and demo deterministic and free |
 | STT | OpenAI Whisper (`/transcribe`), optional | Audio becomes a transcript, then follows the identical text pipeline. Typed transcript is accepted, per the brief |
 | Backend | FastAPI | Typed request validation, auto docs |
+| Bonus | Grounded report-aware chatbot | Answers only supported questions from the selected report and cites source fields |
+| Bonus | Synthetic scan booking | Lists slots, requires explicit confirmation, rechecks availability, and prevents conflicts |
 
 ## Design in one paragraph
 The LLM only **proposes** (intent/entities, candidate findings). `validators.py` then enforces closed
@@ -49,10 +60,13 @@ evidence, or they are rejected and listed under `rejected_claims`. See `ARCHITEC
 - **Latency:** retrieval and validation are local (<10 ms). The LLM call is the only slow step (~0.5-2 s), with a 15 s timeout then rule-based fallback. Whisper adds ~1-3 s per short clip; use streaming STT for live dictation.
 - **Cost:** one small tool-call per utterance (about 300-600 tokens in/out), well under a cent per request. Report summaries are deterministic (no tokens). Cache identical interpretations; use the cheapest model that passes the eval set.
 - **Failure handling:** 1500/4000-char input caps, control-char stripping, `patient_id` format check, 10 MB audio cap, LLM/STT timeouts with fallback or clear 501/502, ambiguous/missing/unknown cases return explicit statuses instead of guessing.
+- **Grounded chatbot:** report questions are limited to findings, impression, date, and clinician. Unsupported treatment or diagnostic questions return `unsupported_question` or `unknown_intent`; no new clinical claims are generated.
+- **Booking:** `data/appointments.json` contains synthetic slots. Booking is two-step (`booking_confirmation_required` then `confirm booking`) and uses a thread lock for the commit/recheck boundary.
 
 ## Known limitations
 - Rule-based extractor covers a limited vocabulary (15 finding types, FDI sites by name or number); free-form speech beyond that lands in `unparsed_statements` for the clinician, by design.
 - Sessions are in-memory (single process); no persistence or multi-tenant isolation.
 - Name matching is edit-distance based, not phonetic; no Indic-name or accent handling; no handling of two patients with identical full names beyond returning both as ambiguous.
-- Summaries are extractive templates, not LLM prose; follow-ups cover "summarize"/"open" only (the optional report-aware chatbot is not implemented).
+- Summaries are extractive templates, not LLM prose; chatbot questions are intentionally limited to grounded report fields.
+- Drafts and bookings are in-memory at runtime; restart loses new bookings/drafts. The JSON appointment file is a reproducible seed, not a production database.
 - No evaluation set beyond unit tests; no real STT quality testing on dental terminology.

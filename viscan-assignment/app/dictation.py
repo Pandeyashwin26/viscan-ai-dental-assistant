@@ -1,6 +1,7 @@
 """Clinical dictation -> structured draft. Extraction is separate from validation."""
 from __future__ import annotations
 import re
+import uuid
 from .vocab import FINDING_VOCAB, UNCERTAIN_RE, NEGATION_RE, find_sites
 from .validators import validate_findings
 
@@ -67,11 +68,19 @@ def render_draft(findings: list[dict], unparsed: list[dict]) -> str:
 
 def build_draft(transcript: str, llm, patient: dict | None = None) -> dict:
     raw = llm.propose_findings(transcript)                      # 1. LLM proposes
+    if not isinstance(raw, dict):
+        raw = {"findings": [], "unparsed": [{"text": transcript, "reason": "invalid model output; clinician to review manually"}]}
     accepted, rejected = validate_findings(raw.get("findings", []), transcript)  # 2. rules decide
     for i, f in enumerate(accepted, 1):
         f["id"] = f"F{i}"; f["needs_review"] = True
     unparsed = raw.get("unparsed", [])
+    contradictions = []
+    for index, left in enumerate(accepted):
+        for right in accepted[index + 1:]:
+            if left.get("finding") == right.get("finding") and left.get("site") == right.get("site") and left.get("polarity") != right.get("polarity"):
+                contradictions.append({"finding": left["finding"], "site": left.get("site"), "claims": [left, right]})
     return {
+        "draft_id": f"D-{uuid.uuid4().hex[:8].upper()}",
         "report_status": "DRAFT_REQUIRES_CLINICIAN_REVIEW",
         "clinician_reviewed": False,
         "patient": {"id": patient["id"], "name": patient["name"]} if patient else None,
@@ -79,6 +88,7 @@ def build_draft(transcript: str, llm, patient: dict | None = None) -> dict:
         "findings": accepted,
         "unparsed_statements": unparsed,
         "rejected_claims": rejected,
+        "contradictions": contradictions,
         "draft_report": render_draft(accepted, unparsed),
         "generated_by": getattr(llm, "name", "unknown"),
     }

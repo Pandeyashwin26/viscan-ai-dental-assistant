@@ -1,7 +1,9 @@
 """Orchestrator: LLM interpretation -> business-rule validation -> deterministic tools."""
 from __future__ import annotations
 from dataclasses import dataclass, field
+import re
 from .store import Store, public_patient
+from .booking import BookingStore, DuplicateBooking, SlotUnavailable, resolve_relative_date
 from .validators import (InputError, clean_text, validate_interpretation, validate_patient_id)
 from .dictation import build_draft
 
@@ -13,6 +15,7 @@ class Session:
     patient_id: str | None = None
     report_id: str | None = None
     pending_text: str | None = None
+    pending_booking: dict | None = None
 
 
 def _resp(status: str, message: str, **kw) -> dict:
@@ -20,8 +23,9 @@ def _resp(status: str, message: str, **kw) -> dict:
 
 
 class Assistant:
-    def __init__(self, store: Store, llm):
+    def __init__(self, store: Store, llm, booking_store: BookingStore | None = None):
         self.store, self.llm = store, llm
+        self.booking_store = booking_store or BookingStore()
 
     # ---- tools (deterministic) -------------------------------------------------
     def _report_payload(self, r: dict) -> dict:
@@ -34,7 +38,10 @@ class Assistant:
             what = interp["report_type"] or "any"
             return _resp("no_report", f"No {what} report on file for {patient['name']}. Available types: {', '.join(avail) or 'none'}.",
                          patient=public_patient(patient), available_types=avail, warnings=warnings)
-        r = reports[0]
+        if interp.get("previous") and len(reports) < 2:
+            return _resp("no_report", f"No previous {interp['report_type'] or 'any'} report on file for {patient['name']}.",
+                         patient=public_patient(patient), warnings=warnings)
+        r = reports[1] if interp.get("previous") else reports[0]
         session.patient_id, session.report_id = patient["id"], r["id"]
         return _resp("ok", f"{r['type']} report for {patient['name']} dated {r['date']}.",
                      patient=public_patient(patient), report=self._report_payload(r),
@@ -47,6 +54,99 @@ class Assistant:
         return _resp("ok", text, patient=public_patient(patient),
                      sources=[{"report_id": r["id"], "fields": ["findings", "impression"],
                                "evidence": r["findings"] + [r["impression"]]}], warnings=[])
+
+    def _report_question(self, r: dict, patient: dict, text: str) -> dict:
+        question = text.lower()
+        if re.search(r"\b(compare|comparison)\b", question):
+            reports = self.store.reports_for(patient["id"], r["type"])
+            if len(reports) < 2:
+                return _resp("missing_comparison", "A previous report of the same type is not available.",
+                             patient=public_patient(patient), report_id=r["id"], warnings=[])
+            previous = next(report for report in reports if report["id"] != r["id"])
+            answer = (f"Current ({r['id']}): {'; '.join(r['findings'])}. "
+                      f"Previous ({previous['id']}): {'; '.join(previous['findings'])}.")
+            return _resp("ok", answer, patient=public_patient(patient), report_id=r["id"],
+                         sources=[{"report_id": r["id"], "fields": ["findings"], "evidence": r["findings"]},
+                                  {"report_id": previous["id"], "fields": ["findings"], "evidence": previous["findings"]}], warnings=[])
+        if re.search(r"\b(findings?|observations?)\b", question):
+            fields, evidence = ["findings"], r["findings"]
+            answer = "Findings: " + "; ".join(evidence)
+        elif re.search(r"\b(anatomical site|tooth|teeth|site)\b", question):
+            fields, evidence = ["findings"], r["findings"]
+            sites = sorted(set(re.findall(r"\b(?:tooth\s*)?([1-4][1-8])\b", " ".join(evidence))))
+            answer = "Documented anatomical sites: " + (", ".join(sites) if sites else "No tooth site is stated.")
+        elif re.search(r"\b(uncertain|uncertainty)\b", question):
+            fields, evidence = ["findings", "impression"], r["findings"] + [r["impression"]]
+            uncertain = [item for item in evidence if re.search(r"\b(possible|uncertain|may|could)\b", item, re.I)]
+            answer = "Uncertain content: " + "; ".join(uncertain) if uncertain else "No uncertainty is documented."
+        elif re.search(r"\bmissing\b", question):
+            fields, evidence = ["id", "type", "date", "findings", "impression"], []
+            answer = "The stored report does not include symptoms, treatment recommendations, or image files."
+        elif re.search(r"\b(impression|conclusion)\b", question):
+            fields, evidence = ["impression"], [r["impression"]]
+            answer = "Impression: " + r["impression"]
+        elif re.search(r"\b(date|when)\b", question):
+            fields, evidence = ["date"], [r["date"]]
+            answer = f"The report date is {r['date']}."
+        elif re.search(r"\b(clinician|reported by|who)\b", question):
+            fields, evidence = ["clinician"], [r["clinician"]]
+            answer = f"The report was reported by {r['clinician']}."
+        else:
+            return _resp("unsupported_question",
+                         "I can answer questions about the report's findings, impression, date, or clinician.",
+                         patient=public_patient(patient), report_id=r["id"], warnings=[])
+        return _resp("ok", answer, patient=public_patient(patient), report_id=r["id"],
+                     sources=[{"report_id": r["id"], "fields": fields, "evidence": evidence}], warnings=[])
+
+    def _booking(self, session: Session, interp: dict, patient: dict | None) -> dict:
+        if interp["intent"] == "booking_confirm":
+            pending = session.pending_booking
+            if not pending or not pending.get("slot"):
+                return _resp("needs_booking_selection", "Select an appointment slot before confirming a booking.", warnings=[])
+            patient = patient or (self.store.get_patient(pending.get("patient_id")) if pending.get("patient_id") else None)
+            if not patient:
+                return _resp("needs_patient", "Which patient should this appointment be booked for?", options=[pending["slot"]], warnings=[])
+            try:
+                booking = self.booking_store.book(pending["slot"]["id"], patient)
+            except SlotUnavailable as exc:
+                session.pending_booking = None
+                return _resp("slot_unavailable", str(exc), warnings=[])
+            except DuplicateBooking as exc:
+                session.pending_booking = None
+                return _resp("duplicate_booking", str(exc), warnings=[])
+            session.pending_booking = None
+            return _resp("booking_confirmed", "Appointment booked successfully.", booking=booking,
+                         sources=[{"slot_id": booking["slot_id"], "fields": ["date", "time", "scan_type"]}], warnings=[])
+
+        if interp["appointment_time"] and session.pending_booking and not interp["patient_name"]:
+            matches = [slot for slot in session.pending_booking.get("options", [])
+                       if slot["time"] == interp["appointment_time"]]
+            if len(matches) == 1:
+                slot = matches[0]
+                session.pending_booking["slot"] = slot
+                if patient:
+                    session.pending_booking["patient_id"] = patient["id"]
+                return _resp("booking_confirmation_required",
+                             "Review the appointment details and reply 'confirm' to book.",
+                             appointment=slot, patient=public_patient(patient) if patient else None,
+                             sources=[{"slot_id": slot["id"], "fields": ["date", "time", "scan_type"]}], warnings=[])
+
+        appointment_date = resolve_relative_date(interp["appointment_date"])
+        options = self.booking_store.available(interp["scan_type"], appointment_date)
+        if interp["appointment_time"]:
+            options = [slot for slot in options if slot["time"] == interp["appointment_time"]]
+        if not options:
+            return _resp("no_available_slots", "No matching synthetic appointment slots are available.", warnings=[])
+        session.pending_booking = {"options": options, "patient_id": patient["id"] if patient else None}
+        if len(options) == 1:
+            session.pending_booking["slot"] = options[0]
+            return _resp("booking_confirmation_required",
+                         "Review the appointment details and reply 'confirm' to book.",
+                         appointment=options[0], patient=public_patient(patient) if patient else None,
+                         sources=[{"slot_id": options[0]["id"], "fields": ["date", "time", "scan_type"]}], warnings=[])
+        return _resp("booking_options", "Select one appointment slot, then confirm the booking.",
+                     options=options, patient=public_patient(patient) if patient else None,
+                     sources=[{"slot_id": slot["id"], "fields": ["date", "time", "scan_type"]} for slot in options], warnings=[])
 
     # ---- identity resolution ---------------------------------------------------
     def _resolve(self, interp: dict, session: Session, explicit_id: str | None, text: str):
@@ -103,6 +203,32 @@ class Assistant:
             return self.dictate(session, text, patient_id)
         if intent == "unknown":
             return _resp("unknown_intent", "I can open a patient's report, summarize it, or turn a dictation into a draft report.")
+        if intent in ("booking", "booking_confirm"):
+            patient = None
+            if patient_id:
+                patient = self.store.get_patient(patient_id)
+                if not patient:
+                    return _resp("no_patient", f"Unknown patient_id {patient_id}.")
+            elif interp["patient_name"]:
+                patient, early = self._resolve(interp, session, None, text)
+                if early:
+                    return early
+            elif session.patient_id:
+                patient = self.store.get_patient(session.patient_id)
+            out = self._booking(session, interp, patient)
+            if patient:
+                session.patient_id = patient["id"]
+            return out
+        if interp.get("report_id"):
+            report = self.store.get_report(interp["report_id"])
+            if not report:
+                return _resp("no_report", f"No report found with id {interp['report_id']}.", warnings=[])
+            if patient_id and report["patient_id"] != patient_id:
+                return _resp("authorization_error", "That report does not belong to the selected patient.", warnings=[])
+            patient = self.store.get_patient(report["patient_id"])
+            session.patient_id, session.report_id = patient["id"], report["id"]
+            return _resp("ok", f"{report['type']} report dated {report['date']}.", patient=public_patient(patient),
+                         report=self._report_payload(report), sources=[{"report_id": report["id"], "fields": ["id", "type", "date"]}], warnings=[])
         patient, early = self._resolve(interp, session, patient_id, text)
         if early:
             return early
@@ -111,7 +237,7 @@ class Assistant:
         if intent == "open_report":
             out = self._pick_report(patient, interp, session, extra)
             return out
-        # summarize_report: reuse the report already on screen when unambiguous
+        # Report follow-ups reuse the report already on screen when unambiguous.
         if not interp["patient_name"] and not interp["report_type"] and session.report_id:
             r = self.store.get_report(session.report_id)
         else:
@@ -120,6 +246,10 @@ class Assistant:
         if not r:
             return _resp("no_report", f"No matching report on file for {patient['name']}.", patient=public_patient(patient))
         session.patient_id, session.report_id = patient["id"], r["id"]
+        if intent == "report_question":
+            out = self._report_question(r, patient, text)
+            out["warnings"] = extra
+            return out
         out = self._summary(r, patient)
         out["warnings"] = extra
         return out

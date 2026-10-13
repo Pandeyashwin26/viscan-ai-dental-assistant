@@ -1,0 +1,8 @@
+[
+  {"id": "S-1001", "date": "2026-10-15", "time": "09:00", "scan_type": "OPG", "status": "available"},
+  {"id": "S-1002", "date": "2026-10-15", "time": "11:00", "scan_type": "OPG", "status": "available"},
+  {"id": "S-1003", "date": "2026-10-15", "time": "14:00", "scan_type": "CBCT", "status": "available"},
+  {"id": "S-1004", "date": "2026-10-16", "time": "10:00", "scan_type": "OPG", "status": "available"},
+  {"id": "S-1005", "date": "2026-10-16", "time": "11:00", "scan_type": "OPG", "status": "booked", "patient_id": "P003"},
+  {"id": "S-1006", "date": "2026-10-17", "time": "13:00", "scan_type": "IOPA", "status": "available"}
+]
