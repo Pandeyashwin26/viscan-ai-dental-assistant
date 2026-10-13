@@ -1,0 +1,46 @@
+[
+  {"id": "R-1001", "patient_id": "P001", "type": "OPG", "date": "2025-02-10", "clinician": "Dr. A. Rao (synthetic)", "status": "final",
+   "findings": ["Horizontally impacted lower right third molar (48).", "Mild generalized horizontal bone loss."],
+   "impression": "Impacted 48. Early periodontal bone loss; correlate clinically."},
+  {"id": "R-1002", "patient_id": "P001", "type": "OPG", "date": "2026-09-18", "clinician": "Dr. A. Rao (synthetic)", "status": "final",
+   "findings": ["Horizontally impacted lower right third molar (48), unchanged.", "Radiolucency around the crown of 48, possible pericoronitis.", "Restoration present on lower left first molar (36)."],
+   "impression": "Persistent horizontal impaction of 48 with possible pericoronitis; surgical opinion advised."},
+  {"id": "R-1003", "patient_id": "P001", "type": "BITEWING", "date": "2026-09-18", "clinician": "Dr. A. Rao (synthetic)", "status": "final",
+   "findings": ["Interproximal caries between 26 and 27, enamel-dentine junction involved."],
+   "impression": "Early interproximal caries 26/27."},
+
+  {"id": "R-2001", "patient_id": "P002", "type": "OPG", "date": "2026-07-02", "clinician": "Dr. S. Iyer (synthetic)", "status": "final",
+   "findings": ["Mesioangular impaction of lower left third molar (38).", "No periapical pathology seen."],
+   "impression": "Impacted 38; no other significant findings."},
+  {"id": "R-2002", "patient_id": "P002", "type": "IOPA", "date": "2026-07-02", "clinician": "Dr. S. Iyer (synthetic)", "status": "final",
+   "findings": ["Periapical radiolucency at the root apex of lower right first molar (46).", "Root canal filling is short of the apex."],
+   "impression": "Findings suggest a chronic periapical lesion at 46; endodontic re-evaluation advised."},
+
+  {"id": "R-3001", "patient_id": "P003", "type": "OPG", "date": "2026-05-11", "clinician": "Dr. A. Rao (synthetic)", "status": "final",
+   "findings": ["Missing upper left first molar (26).", "Crown present on lower right first molar (46)."],
+   "impression": "Edentulous space at 26; prosthetic options to be discussed."},
+  {"id": "R-3002", "patient_id": "P003", "type": "BITEWING", "date": "2025-05-09", "clinician": "Dr. A. Rao (synthetic)", "status": "final",
+   "findings": ["No interproximal caries detected."],
+   "impression": "No caries."},
+
+  {"id": "R-4001", "patient_id": "P004", "type": "OPG", "date": "2026-08-25", "clinician": "Dr. S. Iyer (synthetic)", "status": "final",
+   "findings": ["All four third molars present, upper right third molar (18) vertically impacted."],
+   "impression": "Vertical impaction of 18."},
+  {"id": "R-4002", "patient_id": "P004", "type": "CBCT", "date": "2026-08-25", "clinician": "Dr. S. Iyer (synthetic)", "status": "final",
+   "findings": ["Close relationship between 18 and the maxillary sinus floor."],
+   "impression": "Sinus proximity noted; plan extraction accordingly."},
+
+  {"id": "R-5001", "patient_id": "P005", "type": "OPG", "date": "2026-03-03", "clinician": "Dr. A. Rao (synthetic)", "status": "final",
+   "findings": ["Generalized mild horizontal bone loss.", "Implant in the region of lower left first molar (36)."],
+   "impression": "Implant at 36 with stable crestal bone; mild generalized bone loss."},
+  {"id": "R-5002", "patient_id": "P005", "type": "BITEWING", "date": "2026-03-03", "clinician": "Dr. A. Rao (synthetic)", "status": "final",
+   "findings": ["Distal caries on upper right second premolar (15)."],
+   "impression": "Caries 15 distal surface."},
+
+  {"id": "R-6001", "patient_id": "P006", "type": "IOPA", "date": "2026-09-01", "clinician": "Dr. S. Iyer (synthetic)", "status": "final",
+   "findings": ["Fracture line in the crown of upper right central incisor (11).", "No periapical radiolucency."],
+   "impression": "Crown fracture of 11 without periapical involvement."},
+  {"id": "R-6002", "patient_id": "P006", "type": "IOPA", "date": "2025-09-10", "clinician": "Dr. S. Iyer (synthetic)", "status": "final",
+   "findings": ["Normal periapical status of upper right central incisor (11)."],
+   "impression": "No abnormality detected."}
+]

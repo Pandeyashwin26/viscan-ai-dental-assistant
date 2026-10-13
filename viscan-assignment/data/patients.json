@@ -1,0 +1,8 @@
+[
+  {"id": "P001", "name": "Priya Nair",   "dob": "1992-03-14", "sex": "F", "last_visit": "2026-09-18"},
+  {"id": "P002", "name": "Priya Nayar",  "dob": "1988-11-02", "sex": "F", "last_visit": "2026-07-02"},
+  {"id": "P003", "name": "Rahul Mehta",  "dob": "1979-06-21", "sex": "M", "last_visit": "2026-05-11"},
+  {"id": "P004", "name": "Rahul Mehra",  "dob": "1995-01-30", "sex": "M", "last_visit": "2026-08-25"},
+  {"id": "P005", "name": "Anita Desai",  "dob": "1984-09-09", "sex": "F", "last_visit": "2026-03-03"},
+  {"id": "P006", "name": "Karan Shah",   "dob": "2001-12-05", "sex": "M", "last_visit": "2026-09-01"}
+]
