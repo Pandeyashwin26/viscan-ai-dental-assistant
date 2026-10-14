@@ -3,17 +3,40 @@
 Retrieves patient reports from spoken/typed requests, turns clinical dictation into an
 editable structured draft, and answers context-dependent follow-ups with cited sources.
 
-## Quick start
-```bash
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-python -m pytest -q              # 23 tests, fully offline
-python demo.py                   # scripted demo; writes docs/sample_outputs.md
-uvicorn app.main:app --reload    # API at http://127.0.0.1:8000/docs
-python -m app.cli                # interactive CLI
+## Quick start (Windows PowerShell)
+
+Prerequisites: Python 3.10 or newer, Git, and PowerShell.
+
+```powershell
+py -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+python -m pytest -v
+python demo.py
+python -m uvicorn app.main:app --reload
 ```
-Optional: `cp .env.example .env` and export `ANTHROPIC_API_KEY` to use a real LLM (tool calling)
-and `OPENAI_API_KEY` for Whisper STT. **With no keys, everything still runs** using the offline rule-based adapter.
+
+The API is then available at `http://127.0.0.1:8000/`, with Swagger UI at
+`http://127.0.0.1:8000/docs`. If PowerShell blocks script activation, run the
+commands with `.\.venv\Scripts\python.exe` instead, for example:
+`.\.venv\Scripts\python.exe -m pytest -v`.
+
+To configure optional providers, copy `.env.example` to `.env` and set the
+variables in the process environment before starting Uvicorn. The application
+does not load `.env` automatically; use a dotenv loader or set the variables in
+PowerShell, for example:
+
+```powershell
+$env:ANTHROPIC_API_KEY = "your-key"
+$env:LLM_PROVIDER = "anthropic"
+$env:OPENAI_API_KEY = "your-key"
+python -m uvicorn app.main:app --reload
+```
+
+Never commit `.env` or real credentials. With no Anthropic key, the application
+uses the deterministic `rule-based-offline` adapter. `/transcribe` requires
+`OPENAI_API_KEY`; without it, the endpoint returns a clear configuration error,
+while typed `/chat` and `/dictate` workflows remain available.
 
 ## Render deployment
 This repository includes [`render.yaml`](./render.yaml) with the build command, Uvicorn start
@@ -25,14 +48,17 @@ repository and deployment must still be performed in the Render dashboard.
 
 ## API examples
 ```bash
-curl -s localhost:8000/chat -H 'content-type: application/json' \
-  -d '{"session_id":"demo","text":"Open Priya Nair'"'"'s latest OPG report"}'
-curl -s localhost:8000/chat -H 'content-type: application/json' \
+curl -s http://127.0.0.1:8000/health
+curl -s http://127.0.0.1:8000/chat -H 'content-type: application/json' \
+  -d '{"session_id":"demo","text":"Open Priya Nair'\''s latest OPG report","patient_id":null}'
+curl -s http://127.0.0.1:8000/chat -H 'content-type: application/json' \
   -d '{"session_id":"demo","text":"Summarize her report"}'
-curl -s localhost:8000/chat -H 'content-type: application/json' \
-  -d '{"session_id":"demo","text":"What are the findings in her report?"}'
-curl -s localhost:8000/dictate -H 'content-type: application/json' \
-  -d '{"transcript":"Lower right third molar is horizontally impacted"}'
+curl -s http://127.0.0.1:8000/dictate -H 'content-type: application/json' \
+  -d '{"session_id":"demo","transcript":"Lower right third molar is horizontally impacted.","patient_id":"P001"}'
+# Use the draft_id returned by /dictate:
+# GET /drafts/{draft_id}
+# PUT /drafts/{draft_id} with {"draft_report":"Edited draft for review."}
+# POST /drafts/{draft_id}/finalize with {"clinician_reviewed":true}
 curl -s localhost:8000/chat -H 'content-type: application/json' \
   -d '{"session_id":"booking","text":"Book an OPG scan for Priya Nair on 2026-10-15"}'
 curl -s localhost:8000/chat -H 'content-type: application/json' \
@@ -47,10 +73,15 @@ curl -s localhost:8000/chat -H 'content-type: application/json' \
   -d '{"session_id":"demo2","text":"","patient_id":"P002"}'
 ```
 
+For PowerShell, the same calls can be made with `Invoke-RestMethod`; use
+`-ContentType "application/json"` and a PowerShell hashtable converted with
+`ConvertTo-Json`. If `API_KEY` is set, send it as the `X-API-Key` header on
+the protected routes.
+
 ## Provider choices
 | Layer | Choice | Why |
 |---|---|---|
-| LLM | Anthropic Claude via tool calling (`LLM_MODEL`, default `claude-sonnet-5-5`); offline rule-based fallback | Forced tool-use gives schema-constrained output; fallback keeps tests and demo deterministic and free |
+| LLM | Rule-based adapter by default; Anthropic Claude tool calling when `ANTHROPIC_API_KEY` is set and `LLM_PROVIDER=anthropic` | The rule adapter keeps tests and the demo deterministic and free; Anthropic failures fall back to rules |
 | STT | OpenAI Whisper (`/transcribe`), optional | Audio becomes a transcript, then follows the identical text pipeline. Typed transcript is accepted, per the brief |
 | Backend | FastAPI | Typed request validation, auto docs |
 | Bonus | Grounded report-aware chatbot | Answers only supported questions from the selected report and cites source fields |
@@ -70,11 +101,14 @@ evidence, or they are rejected and listed under `rejected_claims`. See `ARCHITEC
 - **Failure handling:** 1500/4000-char input caps, control-char stripping, `patient_id` format check, 10 MB audio cap, LLM/STT timeouts with fallback or clear 501/502, ambiguous/missing/unknown cases return explicit statuses instead of guessing.
 - **Grounded chatbot:** report questions are limited to findings, impression, date, and clinician. Unsupported treatment or diagnostic questions return `unsupported_question` or `unknown_intent`; no new clinical claims are generated.
 - **Booking:** `data/appointments.json` contains synthetic slots. Booking is two-step (`booking_confirmation_required` then `confirm booking`) and uses a thread lock for the commit/recheck boundary.
+- **Clinician review:** dictation never creates a final clinical record automatically. Drafts remain
+  `DRAFT_REQUIRES_CLINICIAN_REVIEW` until a caller explicitly finalizes one with
+  `{"clinician_reviewed": true}`.
 
 ## Known limitations
 - Rule-based extractor covers a limited vocabulary (15 finding types, FDI sites by name or number); free-form speech beyond that lands in `unparsed_statements` for the clinician, by design.
 - Sessions are in-memory (single process); no persistence or multi-tenant isolation.
-- Name matching is edit-distance based, not phonetic; no Indic-name or accent handling; no handling of two patients with identical full names beyond returning both as ambiguous.
+- Name matching uses deterministic `SequenceMatcher` similarity, not phonetic matching; no Indic-name or accent handling; no handling of two patients with identical full names beyond returning both as ambiguous.
 - Summaries are extractive templates, not LLM prose; chatbot questions are intentionally limited to grounded report fields.
 - Drafts and bookings are in-memory at runtime; restart loses new bookings/drafts. The JSON appointment file is a reproducible seed, not a production database.
 - No evaluation set beyond unit tests; no real STT quality testing on dental terminology.

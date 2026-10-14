@@ -1,7 +1,7 @@
 # Architecture (one page)
 
 ```
- voice ──► STT (Whisper, optional) ──┐
+ voice ──► STT (OpenAI Whisper, optional) ──┐
  typed text ─────────────────────────┴─► transcript
                                            │
                         ┌──────────────────▼───────────────────┐
@@ -32,7 +32,8 @@
 `reports_for` (latest first). Ambiguous or fuzzy returns candidates and selects nothing. A missing report type
 returns `no_report` plus the available types. Exact matches with a near-identical neighbour (Nair/Nayar) carry a DOB-verification warning.
 
-**Flow 2: dictation.** Transcript -> LLM proposes findings, each with a verbatim `evidence` quote -> validator
+**Flow 2: dictation.** The `/dictate` route accepts a typed transcript (or a transcript produced separately by
+`/transcribe`). The LLM proposes findings, each with a verbatim `evidence` quote -> validator
 accepts only vocabulary terms whose evidence appears in the transcript and states the site -> accepted findings
 become editable JSON (`certainty: stated|uncertain`, `polarity`, FDI site, `needs_review: true`) and a templated
 draft marked "requires clinician review". Rejected claims and unconverted statements are surfaced, never silently dropped or "fixed".
@@ -67,5 +68,11 @@ flowchart LR
       Drafts --> Evidence
 ```
 
+**API and security boundary.** FastAPI/Pydantic validates request shapes and size limits. `/health`, `/docs`, and
+`/` are public. If `API_KEY` is configured, `/chat`, `/dictate`, `/transcribe`, and all `/drafts` routes require
+the matching `X-API-Key`; this application key is separate from Anthropic and OpenAI provider keys.
+
 **Separation of concerns.** The LLM never touches data or decides identity. Every state change or data read is a
-deterministic function over validated input.
+deterministic function over validated input. The JSON files are read-only seed data for this proof of concept;
+sessions, drafts, and bookings are process-local in-memory state and are lost on restart. Similar-name matching
+uses deterministic `SequenceMatcher` similarity and requires confirmation rather than silently selecting a patient.
