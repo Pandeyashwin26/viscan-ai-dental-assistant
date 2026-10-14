@@ -72,7 +72,7 @@ def dictate(body: DictateIn):
     return result
 
 
-@app.get("/drafts/{draft_id}")
+@app.get("/drafts/{draft_id}", dependencies=[Depends(require_key)])
 def get_draft(draft_id: str):
     draft = DRAFTS.get(draft_id)
     if not draft:
@@ -80,7 +80,7 @@ def get_draft(draft_id: str):
     return draft
 
 
-@app.put("/drafts/{draft_id}")
+@app.put("/drafts/{draft_id}", dependencies=[Depends(require_key)])
 def edit_draft(draft_id: str, body: DraftEditIn):
     draft = DRAFTS.get(draft_id)
     if not draft:
@@ -96,7 +96,7 @@ def edit_draft(draft_id: str, body: DraftEditIn):
     return draft
 
 
-@app.post("/drafts/{draft_id}/finalize")
+@app.post("/drafts/{draft_id}/finalize", dependencies=[Depends(require_key)])
 def finalize_draft(draft_id: str, body: FinalizeIn):
     draft = DRAFTS.get(draft_id)
     if not draft:
@@ -108,7 +108,7 @@ def finalize_draft(draft_id: str, body: FinalizeIn):
     return draft
 
 
-@app.delete("/drafts/{draft_id}")
+@app.delete("/drafts/{draft_id}", dependencies=[Depends(require_key)])
 def discard_draft(draft_id: str):
     if draft_id not in DRAFTS:
         raise HTTPException(404, "Draft not found.")

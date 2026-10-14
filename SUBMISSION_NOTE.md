@@ -7,7 +7,7 @@ Demo video: to be added by candidate. A documented offline demo is available wit
 
 **What works:** report retrieval from typed/spoken requests with exact/ambiguous/fuzzy/missing handling, previous-report and direct report-ID lookup (incl. similar names Priya Nair/Nayar,
 Rahul Mehta/Mehra); dictation to structured, editable JSON + draft lifecycle with uncertainty labels and mandatory clinician review; "Summarize her report"
-follow-up using session context, with cited sources; grounded report questions for findings, impression, date, clinician, anatomical sites, uncertainty, missing information, and previous-report comparison; confirmation-gated synthetic scan booking with conflict handling; LLM output validated by deterministic rules (21 automated tests, including ambiguity, unsupported claims, grounding, booking, and draft lifecycle); optional Claude tool-calling and Whisper STT.
+follow-up using session context, with cited sources; grounded report questions for findings, impression, date, clinician, anatomical sites, uncertainty, missing information, and previous-report comparison; confirmation-gated synthetic scan booking with conflict handling; LLM output validated by deterministic rules (23 automated tests, including ambiguity, unsupported claims, grounding, booking, draft lifecycle, and API-key protection); optional Claude tool-calling and Whisper STT.
 
 **Incomplete:** rule-based extractor has a limited vocabulary; in-memory sessions; no real-audio accuracy testing.
 

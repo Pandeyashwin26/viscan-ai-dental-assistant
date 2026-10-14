@@ -314,7 +314,7 @@
   "status": "booking_confirmed",
   "message": "Appointment booked successfully.",
   "booking": {
-    "booking_id": "B-583FD239",
+    "booking_id": "B-60C5FA1F",
     "slot_id": "S-1002",
     "patient_id": "P001",
     "patient_name": "Priya Nair",
@@ -355,7 +355,7 @@
   "status": "ok",
   "message": "Draft created. Clinician review required.",
   "draft": {
-    "draft_id": "D-C8D3EA6D",
+    "draft_id": "D-168ED1F5",
     "report_status": "DRAFT_REQUIRES_CLINICIAN_REVIEW",
     "clinician_reviewed": false,
     "patient": null,

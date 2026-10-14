@@ -132,6 +132,13 @@ def test_booking_conflict_is_reported_without_false_success():
     assert len(booking_store.bookings) == 1
 
 
+def test_tomorrow_resolves_from_supplied_reference_date():
+    from datetime import date
+    from app.booking import resolve_relative_date
+
+    assert resolve_relative_date("tomorrow", date(2026, 10, 14)) == "2026-10-15"
+
+
 # 4. dictation + unsupported clinical claims -------------------------------------
 def test_dictation_structured_draft(bot):
     a, s = bot
@@ -206,3 +213,13 @@ def test_api_draft_can_be_edited_and_requires_review_before_finalize():
     finalized = c.post(f"/drafts/{draft_id}/finalize", json={"clinician_reviewed": True})
     assert finalized.status_code == 200 and finalized.json()["report_status"] == "FINAL"
     assert c.delete(f"/drafts/{draft_id}").status_code == 200
+
+
+def test_api_key_protects_draft_routes(monkeypatch):
+    from app.main import app
+
+    monkeypatch.setenv("API_KEY", "test-secret")
+    c = TestClient(app)
+    assert c.get("/drafts/not-found").status_code == 401
+    assert c.get("/drafts/not-found", headers={"X-API-Key": "test-secret"}).status_code == 404
+    assert c.get("/health").status_code == 200

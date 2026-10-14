@@ -7,13 +7,21 @@ editable structured draft, and answers context-dependent follow-ups with cited s
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-python -m pytest -q              # 21 tests, fully offline
+python -m pytest -q              # 23 tests, fully offline
 python demo.py                   # scripted demo; writes docs/sample_outputs.md
 uvicorn app.main:app --reload    # API at http://127.0.0.1:8000/docs
 python -m app.cli                # interactive CLI
 ```
 Optional: `cp .env.example .env` and export `ANTHROPIC_API_KEY` to use a real LLM (tool calling)
 and `OPENAI_API_KEY` for Whisper STT. **With no keys, everything still runs** using the offline rule-based adapter.
+
+## Render deployment
+This repository includes [`render.yaml`](./render.yaml) with the build command, Uvicorn start
+command, and `/health` health check. In Render, connect the GitHub repository and deploy the
+blueprint. No provider key is required for the offline demo; add `API_KEY` and optionally
+`ANTHROPIC_API_KEY` or `OPENAI_API_KEY` as Render environment variables if needed. After deployment,
+verify `https://<your-service>.onrender.com/health` and `/docs`; a public URL is not included in this
+repository and deployment must still be performed in the Render dashboard.
 
 ## API examples
 ```bash

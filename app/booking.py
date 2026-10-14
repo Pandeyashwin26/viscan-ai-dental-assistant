@@ -72,5 +72,5 @@ def resolve_relative_date(value: str | None, today: date | None = None) -> str |
     if not value:
         return None
     if value == "tomorrow":
-        return (today or date.today() + timedelta(days=1)).isoformat()
+        return ((today or date.today()) + timedelta(days=1)).isoformat()
     return value
